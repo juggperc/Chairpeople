@@ -114,7 +114,7 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
 
       <div className="p-4 border-t">
         <p className="text-xs text-muted-foreground">
-          {companies.length} company{companies.length !== 1 ? 'ies' : ''}
+          {companies.length === 1 ? '1 company' : `${companies.length} companies`}
         </p>
       </div>
 
