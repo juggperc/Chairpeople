@@ -28,7 +28,6 @@ Your role is to understand the user's desired company structure and transform it
 **Skills & Tools:**
 You can create executable skills that allow agents to perform actions:
 - Skills can have tools that execute commands in a sandbox
-- Available built-in tools: ${toolRegistry.getNames().join(', ') || 'none registered'}
 - Tools take parameters and return results
 
 ## Output Format:
@@ -194,7 +193,7 @@ export function useOrchestrator() {
       const result = await streamText({
         model,
         system: ORCHESTRATOR_SYSTEM_PROMPT,
-        prompt: userInput,
+        messages: [{ role: 'user', content: userInput }],
       });
 
       let fullResponse = '';

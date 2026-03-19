@@ -89,7 +89,7 @@ export function useEmployeeAgent({ employee, companyId, skills = [], conversatio
       const result = await streamText({
         model,
         system: systemPrompt,
-        prompt: userInput,
+        messages: [{ role: 'user', content: userInput }],
       });
 
       let fullResponse = '';
