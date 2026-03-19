@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { streamText } from 'ai';
 import { openrouter } from '@openrouter/ai-sdk-provider';
+import { createOpenAI } from '@ai-sdk/openai';
 import { useSettingsStore } from '@/stores/settings';
 import { useChatStore } from '@/stores/chat';
 import { useCompanyStore } from '@/stores/company';
@@ -129,6 +130,10 @@ export function useOrchestrator() {
 
   const providerConfig = providers.find(p => p.type === activeProvider);
 
+  // #region debug log
+  fetch('http://127.0.0.1:7323/ingest/3ce41043-4313-4eef-a698-7be0280253e2',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'bf546b'},body:JSON.stringify({sessionId:'bf546b',location:'orchestrator.ts:130',message:'Provider config state',data:{activeProvider,providersCount:providers.length,providerConfigHasApiKey:!!providerConfig?.apiKey,defaultModel:providerConfig?.defaultModel},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
+
   const handleCreateSkill = useCallback((skillData: {
     name: string;
     description: string;
@@ -188,7 +193,20 @@ export function useOrchestrator() {
     setError(null);
 
     try {
-      const model = openrouter(providerConfig.defaultModel || 'anthropic/claude-3.5-sonnet');
+      // #region debug log
+      fetch('http://127.0.0.1:7323/ingest/3ce41043-4313-4eef-a698-7be0280253e2',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'bf546b'},body:JSON.stringify({sessionId:'bf546b',location:'orchestrator.ts:195',message:'Before streamText call',data:{activeProvider,defaultModel:providerConfig.defaultModel,baseUrl:providerConfig.baseUrl},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+      
+      let model;
+      if (activeProvider === 'opencode') {
+        const openai = createOpenAI({
+          apiKey: providerConfig.apiKey || 'dummy',
+          baseURL: providerConfig.baseUrl || 'https://opencode.ai/zen/v1',
+        });
+        model = openai(providerConfig.defaultModel || 'opencode');
+      } else {
+        model = openrouter(providerConfig.defaultModel || 'anthropic/claude-3.5-sonnet');
+      }
 
       const result = await streamText({
         model,
@@ -234,11 +252,14 @@ export function useOrchestrator() {
         }
       }
     } catch (err) {
+      // #region debug log
+      fetch('http://127.0.0.1:7323/ingest/3ce41043-4313-4eef-a698-7be0280253e2',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'bf546b'},body:JSON.stringify({sessionId:'bf546b',location:'orchestrator.ts:237',message:'Error caught in sendPrompt',data:{error:err instanceof Error ? err.message : String(err),name:err instanceof Error ? err.name : 'unknown'},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
       setError(err instanceof Error ? err : new Error('Unknown error'));
     } finally {
       setIsLoading(false);
     }
-  }, [providerConfig, addOrchestrationMessage, handleCreateSkill]);
+  }, [providerConfig, addOrchestrationMessage, handleCreateSkill, activeProvider]);
 
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value);

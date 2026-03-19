@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import { streamText } from 'ai';
 import { openrouter } from '@openrouter/ai-sdk-provider';
+import { createOpenAI } from '@ai-sdk/openai';
 import type { Employee } from '@/types';
 import { useSettingsStore } from '@/stores/settings';
 import { useChatStore } from '@/stores/chat';
@@ -82,9 +83,18 @@ export function useEmployeeAgent({ employee, companyId, skills = [], conversatio
     setError(null);
 
     try {
-      // Set API key for OpenRouter
-      process.env.OPENROUTER_API_KEY = providerConfig.apiKey;
-      const model = openrouter(employee.modelId || providerConfig.defaultModel || 'anthropic/claude-3.5-sonnet');
+      // Determine model based on provider
+      let model;
+      const providerType = employee.provider || activeProvider;
+      if (providerType === 'opencode') {
+        const openai = createOpenAI({
+          apiKey: providerConfig.apiKey || 'dummy',
+          baseURL: providerConfig.baseUrl || 'https://opencode.ai/zen/v1',
+        });
+        model = openai(employee.modelId || providerConfig.defaultModel || 'opencode');
+      } else {
+        model = openrouter(employee.modelId || providerConfig.defaultModel || 'anthropic/claude-3.5-sonnet');
+      }
 
       const result = await streamText({
         model,

@@ -137,7 +137,7 @@ export function OrchestrationView() {
                   animate={{ scale: 1 }}
                   className="space-y-2"
                 >
-                  <h3 className="text-2xl font-semibold">Welcome to Chairpeople</h3>
+                  <img src="/chairpeople.png" alt="Chairpeople" className="h-24 w-auto mx-auto" />
                   <p className="text-muted-foreground max-w-md">
                     Describe the company you want to build. You can create any structure
                     - from traditional hierarchies to creative collectives.
