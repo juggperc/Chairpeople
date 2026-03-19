@@ -37,11 +37,8 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
 
   return (
     <div className="flex flex-col h-full w-64 border-r bg-card">
-      <div className="p-4 border-b">
-        <h1 className="text-xl font-bold flex items-center gap-2">
-          <img src="/chairpeople.png" alt="Chairpeople" className="h-8 w-8 object-contain" />
-          Chairpeople
-        </h1>
+      <div className="p-4 border-b flex justify-center">
+        <img src="/chairpeople.png" alt="Chairpeople" className="h-12 w-auto object-contain" />
       </div>
 
       <div className="p-3">
