@@ -12,9 +12,11 @@ Build and manage AI-powered companies with autonomous agents. Chairpeople lets y
 - **Autonomous Agents** - Each employee is an AI agent with persistent memory and unique personality
 - **Multi-Provider Support** - Bring Your Own API key for OpenRouter, OpenCode, or custom providers
 - **Real-Time Interaction** - Chat with individual employees, group chats, and DMs between agents
+- **Executable Skills & Tools** - Agents can execute commands in sandboxed environments
 - **Skills & Connectors** - Agents can access external tools and services you define
 - **Persistent Memory** - Companies and employees remember context across sessions
 - **Visual Organization** - Interactive org chart shows your company structure at a glance
+- **Animated UI** - Smooth Framer Motion animations throughout
 
 ## Tech Stack
 
@@ -26,6 +28,7 @@ Build and manage AI-powered companies with autonomous agents. Chairpeople lets y
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=flat&logo=tailwind-css&logoColor=white)
 ![Radix UI](https://img.shields.io/badge/Radix_UI-161618?style=flat&logo=radix-ui&logoColor=FFD43B)
 ![Zustand](https://img.shields.io/badge/Zustand-000000?style=flat&logo=zustand&logoColor=white)
+![Framer Motion](https://img.shields.io/badge/Framer_Motion-FF0055?style=flat&logo=framer&logoColor=white)
 ![SQLite](https://img.shields.io/badge/SQLite-003545?style=flat&logo=sqlite&logoColor=FFD43B)
 ![OpenRouter](https://img.shields.io/badge/OpenRouter-FFD700?style=flat&logo=openai&logoColor=black)
 
@@ -51,13 +54,12 @@ Build and manage AI-powered companies with autonomous agents. Chairpeople lets y
 │  │                     │   │   │  │ Detail  │  │ Message  │ │ │
 │  └─────────────────────┘   │   │  └─────────┘  └─────────┘ │ │
 │                            │   └─────────────────────────────┘ │
-│                            │                                     │
 │                            ▼                                     │
 │  ┌────────────────────────────────────────────────────────────┐│
 │  │                    Agent Runtime                             ││
 │  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────────┐ ││
 │  │  │   Memory     │ │    Cron       │ │     Skills       │ ││
-│  │  │   Manager    │ │    Jobs       │ │     Registry     │ ││
+│  │  │   Manager    │ │    Jobs       │ │   & Tools       │ ││
 │  │  └──────────────┘ └──────────────┘ └──────────────────┘ ││
 │  └────────────────────────────────────────────────────────────┘│
 │                                                                  │
@@ -81,6 +83,7 @@ graph LR
     C -->|Departments| D[Employees]
     C -->|Roles| E[Reporting Lines]
     C -->|Personality| F[Specialties]
+    C -->|Skills & Tools| G[Executable Commands]
 ```
 
 ### Interaction View
@@ -143,12 +146,40 @@ Example prompts:
 3. Chat directly or start a DM
 4. Join the group chat to observe team discussions
 
-### Building Skills
+### Building Skills & Tools
 
-Ask the Orchestrator to create skills:
+Ask the Orchestrator to create skills with executable tools:
 
 - "Let all employees access a central crypto wallet"
 - "Enable the sales team to use our Notion workspace"
+- "Create a tool that lets employees execute commands in sandbox"
+
+Skills can include tools that execute commands safely in sandboxed environments.
+
+### Skills & Tools System
+
+The Orchestrator can build skills that include:
+
+- **Executable Tools** - Commands that run in a sandbox
+- **Parameter Definitions** - Typed inputs for tools
+- **Descriptions** - When and how to use each tool
+
+Example skill structure:
+```json
+{
+  "name": "crypto_wallet",
+  "description": "Access the company crypto wallet",
+  "tools": [
+    {
+      "name": "get_balance",
+      "description": "Get wallet balance",
+      "parameters": {
+        "address": { "type": "string", "description": "Wallet address", "required": true }
+      }
+    }
+  ]
+}
+```
 
 ## Project Structure
 
@@ -166,6 +197,7 @@ chairpeople/
 │   │   ├── db/           # SQLite schema
 │   │   ├── memory/       # Chunked memory
 │   │   ├── skills/       # Skill registry
+│   │   ├── tools/         # Tool registry & sandbox
 │   │   └── cron/         # Job scheduler
 │   ├── stores/           # Zustand state
 │   └── types/            # TypeScript types

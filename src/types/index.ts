@@ -28,6 +28,18 @@ export interface Memory {
   updatedAt: string;
 }
 
+export interface Tool {
+  name: string;
+  description: string;
+  parameters: Record<string, {
+    type: 'string' | 'number' | 'boolean';
+    description: string;
+    required: boolean;
+    default?: string;
+  }>;
+  handler?: string; // For skills that have executable handlers
+}
+
 export interface Skill {
   id: string;
   companyId: string;
@@ -35,6 +47,7 @@ export interface Skill {
   description: string;
   instructions: string;
   provider: ProviderType;
+  tools?: Tool[];
   createdBy: string;
   createdAt: string;
   updatedAt: string;

@@ -1,5 +1,5 @@
 import { v4 as uuid } from 'uuid';
-import type { Skill, Connector, ProviderType } from '@/types';
+import type { Skill, Connector, ProviderType, Tool } from '@/types';
 import { getDb } from '@/lib/db';
 
 export class SkillRegistry {
@@ -15,6 +15,7 @@ export class SkillRegistry {
     instructions: string;
     provider: ProviderType;
     createdBy: string;
+    tools?: Tool[];
   }): Skill {
     const id = uuid();
     const now = new Date().toISOString();
@@ -26,6 +27,7 @@ export class SkillRegistry {
       description: options.description,
       instructions: options.instructions,
       provider: options.provider,
+      tools: options.tools,
       createdBy: options.createdBy,
       createdAt: now,
       updatedAt: now,
@@ -34,9 +36,9 @@ export class SkillRegistry {
     try {
       const db = getDb();
       db.prepare(`
-        INSERT INTO skills (id, company_id, name, description, instructions, provider, created_by, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(id, this.companyId, options.name, options.description, options.instructions, options.provider, options.createdBy, now, now);
+        INSERT INTO skills (id, company_id, name, description, instructions, provider, tools, created_by, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(id, this.companyId, options.name, options.description, options.instructions, options.provider, JSON.stringify(options.tools || []), options.createdBy, now, now);
     } catch (error) {
       console.error('Failed to create skill:', error);
     }
@@ -47,9 +49,14 @@ export class SkillRegistry {
   getAll(): Skill[] {
     try {
       const db = getDb();
-      return db.prepare(`
+      const rows = db.prepare(`
         SELECT * FROM skills WHERE company_id = ? ORDER BY created_at DESC
-      `).all(this.companyId) as Skill[];
+      `).all(this.companyId) as Array<Skill & { tools: string }>;
+      
+      return rows.map(row => ({
+        ...row,
+        tools: row.tools ? (typeof row.tools === 'string' ? JSON.parse(row.tools) : row.tools) : undefined,
+      }));
     } catch (error) {
       console.error('Failed to get skills:', error);
       return [];
@@ -89,6 +96,7 @@ export class SkillRegistry {
       if (updates.description !== undefined) { fields.push('description = ?'); values.push(updates.description); }
       if (updates.instructions !== undefined) { fields.push('instructions = ?'); values.push(updates.instructions); }
       if (updates.provider !== undefined) { fields.push('provider = ?'); values.push(updates.provider); }
+      if (updates.tools !== undefined) { fields.push('tools = ?'); values.push(JSON.stringify(updates.tools)); }
 
       if (fields.length === 0) return false;
 

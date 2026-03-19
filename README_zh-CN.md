@@ -12,9 +12,11 @@
 - **自主智能体** - 每个员工都是具有持久记忆和独特个性的 AI 智能体
 - **多提供商支持** - 使用 OpenRouter、OpenCode 或自定义提供商的 API 密钥
 - **实时交互** - 与个人员工聊天、群聊和智能体之间的私信
+- **可执行技能与工具** - 智能体可以在沙盒环境中执行命令
 - **技能与连接器** - 智能体可以访问您定义的外部工具和服务
 - **持久记忆** - 公司和员工跨会话记住上下文
 - **可视化组织** - 交互式组织结构图一目了然
+- **动画 UI** - 全程流畅的 Framer Motion 动画
 
 ## 技术栈
 
@@ -26,6 +28,7 @@
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=flat&logo=tailwind-css&logoColor=white)
 ![Radix UI](https://img.shields.io/badge/Radix_UI-161618?style=flat&logo=radix-ui&logoColor=FFD43B)
 ![Zustand](https://img.shields.io/badge/Zustand-000000?style=flat&logo=zustand&logoColor=white)
+![Framer Motion](https://img.shields.io/badge/Framer_Motion-FF0055?style=flat&logo=framer&logoColor=white)
 ![SQLite](https://img.shields.io/badge/SQLite-003545?style=flat&logo=sqlite&logoColor=FFD43B)
 ![OpenRouter](https://img.shields.io/badge/OpenRouter-FFD700?style=flat&logo=openai&logoColor=black)
 
@@ -56,7 +59,7 @@
 │  │                    智能体运行时                              ││
 │  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────────┐ ││
 │  │  │   记忆       │ │    定时      │ │     技能       │ ││
-│  │  │   管理器     │ │    任务      │ │     注册表     │ ││
+│  │  │   管理器     │ │    任务      │ │   & 工具       │ ││
 │  │  └──────────────┘ └──────────────┘ └──────────────────┘ ││
 │  └────────────────────────────────────────────────────────────┘│
 │                                                                  │
@@ -80,6 +83,7 @@ graph LR
     C -->|部门| D[员工]
     C -->|角色| E[汇报线]
     C -->|个性| F[专业领域]
+    C -->|技能和工具| G[可执行命令]
 ```
 
 ### 交互视图
@@ -142,12 +146,40 @@ npm run dev
 3. 直接聊天或开始私信
 4. 加入群聊观察团队讨论
 
-### 构建技能
+### 构建技能和工具
 
-让编排器创建技能：
+让编排器创建带有可执行工具的技能：
 
 - "让所有员工访问中央加密货币钱包"
 - "启用销售团队使用我们的 Notion 工作区"
+- "创建一个允许员工在沙盒中执行命令的工具"
+
+技能可以包括在沙盒环境中安全执行命令的工具。
+
+### 技能和工具系统
+
+编排器可以构建包含以下内容的技能：
+
+- **可执行工具** - 在沙盒中运行的命令
+- **参数定义** - 工具的类型化输入
+- **描述** - 何时以及如何使用每个工具
+
+示例技能结构：
+```json
+{
+  "name": "crypto_wallet",
+  "description": "访问公司加密货币钱包",
+  "tools": [
+    {
+      "name": "get_balance",
+      "description": "获取钱包余额",
+      "parameters": {
+        "address": { "type": "string", "description": "钱包地址", "required": true }
+      }
+    }
+  ]
+}
+```
 
 ## 项目结构
 
@@ -165,6 +197,7 @@ chairpeople/
 │   │   ├── db/           # SQLite 模式
 │   │   ├── memory/       # 分块记忆
 │   │   ├── skills/       # 技能注册表
+│   │   ├── tools/        # 工具注册表和沙盒
 │   │   └── cron/         # 任务调度器
 │   ├── stores/           # Zustand 状态
 │   └── types/            # TypeScript 类型

@@ -3,6 +3,8 @@ import { streamText } from 'ai';
 import { openrouter } from '@openrouter/ai-sdk-provider';
 import { useSettingsStore } from '@/stores/settings';
 import { useChatStore } from '@/stores/chat';
+import { useCompanyStore } from '@/stores/company';
+import { toolRegistry } from '@/lib/tools';
 
 const ORCHESTRATOR_SYSTEM_PROMPT = `You are the Orchestrator - a visionary AI architect who helps users build AI-powered companies from scratch.
 
@@ -23,13 +25,19 @@ Your role is to understand the user's desired company structure and transform it
 - Memory instructions (how this employee should remember context)
 - Custom interaction rules
 
+**Skills & Tools:**
+You can create executable skills that allow agents to perform actions:
+- Skills can have tools that execute commands in a sandbox
+- Available built-in tools: ${toolRegistry.getNames().join(', ') || 'none registered'}
+- Tools take parameters and return results
+
 ## Output Format:
 
 When the user asks to create or modify a company structure, respond with a JSON block:
 
 \`\`\`json
 {
-  "action": "create_company" | "update_company" | "add_employee" | "update_employee" | "remove_employee" | "add_rule" | "remove_rule",
+  "action": "create_company" | "update_company" | "add_employee" | "update_employee" | "remove_employee" | "add_rule" | "remove_rule" | "create_skill",
   "data": {
     // Structure varies by action - see below
   }
@@ -70,6 +78,22 @@ When the user asks to create or modify a company structure, respond with a JSON 
   "interactionRules": ["can_dm_team"]
 }
 
+**create_skill:**
+{
+  "name": "skill_name",
+  "description": "What this skill does",
+  "instructions": "When to use this skill and how to invoke it",
+  "tools": [
+    {
+      "name": "tool_name",
+      "description": "What this tool does",
+      "parameters": {
+        "param1": { "type": "string", "description": "param description", "required": true }
+      }
+    }
+  ]
+}
+
 ## Guidelines:
 
 1. Ask clarifying questions if the user's request is vague (e.g., "What kind of company culture?" "Hierarchical or flat structure?")
@@ -81,9 +105,10 @@ When the user asks to create or modify a company structure, respond with a JSON 
 
 ## Skills & Connectors:
 
-You can also design custom skills and connectors when the user requests access to external tools:
-- Skills define what an employee CAN do
+You can design custom skills and connectors when the user requests access to external tools:
+- Skills define what an employee CAN do with executable tools
 - Connectors link to external services (Notion, wallets, APIs)
+- Tools execute in a sandboxed environment for safety
 
 Respond in a conversational way, explaining what you're building. Use the JSON blocks for actual changes.`;
 
@@ -96,13 +121,46 @@ interface Message {
 export function useOrchestrator() {
   const { activeProvider, providers } = useSettingsStore();
   const { addOrchestrationMessage, clearOrchestrationMessages } = useChatStore();
-  
+  const { createCompany } = useCompanyStore();
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
   const providerConfig = providers.find(p => p.type === activeProvider);
+
+  const handleCreateSkill = useCallback((skillData: {
+    name: string;
+    description: string;
+    instructions: string;
+    tools?: Array<{
+      name: string;
+      description: string;
+      parameters: Record<string, { type: string; description: string; required?: boolean }>;
+    }>;
+  }) => {
+    // Register tools with the tool registry
+    skillData.tools?.forEach(tool => {
+      if (!toolRegistry.has(tool.name)) {
+        toolRegistry.register({
+          name: tool.name,
+          description: tool.description,
+          parameters: Object.fromEntries(
+            Object.entries(tool.parameters).map(([key, val]) => [
+              key,
+              {
+                type: val.type as 'string' | 'number' | 'boolean',
+                description: val.description,
+                required: val.required ?? false,
+              },
+            ])
+          ),
+          handler: async () => ({ success: true, output: 'Tool executed', exitCode: 0 }),
+        });
+      }
+    });
+  }, []);
 
   const sendPrompt = useCallback(async (userInput: string) => {
     if (!providerConfig?.apiKey) {
@@ -131,8 +189,6 @@ export function useOrchestrator() {
     setError(null);
 
     try {
-      // Set API key for OpenRouter
-      process.env.OPENROUTER_API_KEY = providerConfig.apiKey;
       const model = openrouter(providerConfig.defaultModel || 'anthropic/claude-3.5-sonnet');
 
       const result = await streamText({
@@ -165,12 +221,25 @@ export function useOrchestrator() {
         senderName: 'Orchestrator',
         content: fullResponse,
       });
+
+      // Check if response contains skill creation
+      const jsonMatch = fullResponse.match(/```json\s*(\{[\s\S]*?\})\s*```/);
+      if (jsonMatch) {
+        try {
+          const parsed = JSON.parse(jsonMatch[1]);
+          if (parsed.action === 'create_skill' && parsed.data) {
+            handleCreateSkill(parsed.data);
+          }
+        } catch {
+          // Not valid JSON
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Unknown error'));
     } finally {
       setIsLoading(false);
     }
-  }, [providerConfig, addOrchestrationMessage]);
+  }, [providerConfig, addOrchestrationMessage, handleCreateSkill]);
 
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value);
