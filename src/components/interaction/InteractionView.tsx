@@ -1,9 +1,9 @@
 import * as React from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useCompanyStore } from '@/stores/company';
 import { Header } from '@/components/layout';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Button } from '@/components/ui/button';
-import { MessageSquare, Users, UserCircle } from 'lucide-react';
+import { Users, UserCircle } from 'lucide-react';
 import { CompanyFlowchart } from './CompanyFlowchart';
 import { EmployeeDetail } from './EmployeeDetail';
 import { GroupChat } from './GroupChat';
@@ -29,17 +29,27 @@ export function InteractionView() {
 
   if (!activeCompany) {
     return (
-      <div className="flex flex-col h-full">
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="flex flex-col h-full"
+      >
         <Header title="Interaction" subtitle="Select or create a company to interact with" />
         <div className="flex-1 flex items-center justify-center">
           <p className="text-muted-foreground">No company selected</p>
         </div>
-      </div>
+      </motion.div>
     );
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="flex flex-col h-full"
+    >
       <Header
         title="Interaction"
         subtitle={`${activeCompany.name} - ${activeCompany.structure.employees.length} employees`}
@@ -60,34 +70,68 @@ export function InteractionView() {
         </div>
 
         <TabsContent value="flowchart" className="flex-1 flex">
-          <div className={cn('flex-1', selectedEmployeeId && 'mr-0')}>
-            <CompanyFlowchart
-              onNodeClick={handleNodeClick}
-              selectedNodeId={selectedEmployeeId}
-              className="h-full"
-            />
-          </div>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key="flowchart"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
+              className={cn('flex-1', selectedEmployeeId && 'mr-0')}
+            >
+              <CompanyFlowchart
+                onNodeClick={handleNodeClick}
+                selectedNodeId={selectedEmployeeId}
+                className="h-full"
+              />
+            </motion.div>
+          </AnimatePresence>
 
-          {selectedEmployeeId && (
-            <EmployeeDetail
-              employeeId={selectedEmployeeId}
-              onClose={() => setSelectedEmployeeId(null)}
-              onStartDM={handleStartDM}
-            />
-          )}
+          <AnimatePresence>
+            {selectedEmployeeId && (
+              <motion.div
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+                transition={{ duration: 0.2 }}
+              >
+                <EmployeeDetail
+                  employeeId={selectedEmployeeId}
+                  onClose={() => setSelectedEmployeeId(null)}
+                  onStartDM={handleStartDM}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-          {dmEmployeeId && (
-            <DirectMessage
-              employeeId={dmEmployeeId}
-              onClose={() => setDmEmployeeId(null)}
-            />
-          )}
+          <AnimatePresence>
+            {dmEmployeeId && (
+              <motion.div
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+                transition={{ duration: 0.2 }}
+              >
+                <DirectMessage
+                  employeeId={dmEmployeeId}
+                  onClose={() => setDmEmployeeId(null)}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </TabsContent>
 
         <TabsContent value="group" className="flex-1 flex">
-          <GroupChat companyId={activeCompany.id} className="flex-1" />
+          <motion.div
+            key="group"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            className="flex-1"
+          >
+            <GroupChat companyId={activeCompany.id} className="flex-1" />
+          </motion.div>
         </TabsContent>
       </Tabs>
-    </div>
+    </motion.div>
   );
 }

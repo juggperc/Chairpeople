@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useSettingsStore } from '@/stores/settings';
 import { Header } from '@/components/layout';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -26,11 +27,8 @@ export function SettingsView() {
     setWebSearch,
   } = useSettingsStore();
 
-  const [customModelInput, setCustomModelInput] = React.useState('');
   const [newModelId, setNewModelId] = React.useState('');
   const [newModelName, setNewModelName] = React.useState('');
-
-  const currentProvider = providers.find((p) => p.type === activeProvider);
 
   const handleAddCustomModel = () => {
     if (!newModelId.trim() || !newModelName.trim()) return;
@@ -45,14 +43,21 @@ export function SettingsView() {
     setNewModelName('');
   };
 
-  const availableModels = activeProvider === 'openrouter' 
-    ? OPENROUTER_MODELS 
-    : activeProvider === 'opencode' 
-    ? OPENCODE_MODELS 
-    : [];
+  const availableModels = activeProvider === 'openrouter'
+    ? OPENROUTER_MODELS
+    : activeProvider === 'opencode'
+      ? OPENCODE_MODELS
+      : [];
+
+  const currentProvider = providers.find((p) => p.type === activeProvider);
 
   return (
-    <div className="flex flex-col h-full">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="flex flex-col h-full"
+    >
       <Header title="Settings" subtitle="Configure your AI providers and preferences" />
 
       <Tabs defaultValue="providers" className="flex-1 overflow-auto">
@@ -74,7 +79,11 @@ export function SettingsView() {
         </div>
 
         <TabsContent value="providers" className="p-6 space-y-6">
-          <div className="space-y-4">
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-4"
+          >
             <h3 className="text-lg font-medium">AI Provider</h3>
             <p className="text-sm text-muted-foreground">
               Select which AI provider to use for your agents. You can configure API keys below.
@@ -82,8 +91,9 @@ export function SettingsView() {
 
             <div className="grid gap-4">
               {providers.map((provider) => (
-                <div
+                <motion.div
                   key={provider.type}
+                  whileHover={{ scale: 1.01 }}
                   className={cn(
                     'rounded-lg border p-4 cursor-pointer transition-colors',
                     activeProvider === provider.type
@@ -101,7 +111,8 @@ export function SettingsView() {
                         {provider.type === 'custom' && 'Custom OpenAI-compatible API'}
                       </p>
                     </div>
-                    <div
+                    <motion.div
+                      whileHover={{ scale: 1.1 }}
                       className={cn(
                         'w-4 h-4 rounded-full border-2',
                         activeProvider === provider.type
@@ -111,63 +122,75 @@ export function SettingsView() {
                     />
                   </div>
 
-                  {activeProvider === provider.type && (
-                    <div className="mt-4 space-y-4">
-                      <div className="space-y-2">
-                        <Label htmlFor={`api-key-${provider.type}`}>API Key</Label>
-                        <Input
-                          id={`api-key-${provider.type}`}
-                          type="password"
-                          placeholder="sk-..."
-                          value={provider.apiKey || ''}
-                          onChange={(e) => updateProvider(provider.type, { apiKey: e.target.value })}
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                      </div>
+                  <AnimatePresence>
+                    {activeProvider === provider.type && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="mt-4 space-y-4"
+                      >
+                        <div className="space-y-2">
+                          <Label htmlFor={`api-key-${provider.type}`}>API Key</Label>
+                          <Input
+                            id={`api-key-${provider.type}`}
+                            type="password"
+                            placeholder="sk-..."
+                            value={provider.apiKey || ''}
+                            onChange={(e) => updateProvider(provider.type, { apiKey: e.target.value })}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        </div>
 
-                      {provider.type === 'custom' && (
-                        <>
-                          <div className="space-y-2">
-                            <Label htmlFor="custom-base-url">Base URL</Label>
-                            <Input
-                              id="custom-base-url"
-                              placeholder="https://api.example.com/v1"
-                              value={provider.baseUrl || ''}
-                              onChange={(e) => updateProvider(provider.type, { baseUrl: e.target.value })}
-                              onClick={(e) => e.stopPropagation()}
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="custom-default-model">Default Model</Label>
-                            <Input
-                              id="custom-default-model"
-                              placeholder="gpt-4"
-                              value={provider.defaultModel || ''}
-                              onChange={(e) => updateProvider(provider.type, { defaultModel: e.target.value })}
-                              onClick={(e) => e.stopPropagation()}
-                            />
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  )}
-                </div>
+                        {provider.type === 'custom' && (
+                          <>
+                            <div className="space-y-2">
+                              <Label htmlFor="custom-base-url">Base URL</Label>
+                              <Input
+                                id="custom-base-url"
+                                placeholder="https://api.example.com/v1"
+                                value={provider.baseUrl || ''}
+                                onChange={(e) => updateProvider(provider.type, { baseUrl: e.target.value })}
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="custom-default-model">Default Model</Label>
+                              <Input
+                                id="custom-default-model"
+                                placeholder="gpt-4"
+                                value={provider.defaultModel || ''}
+                                onChange={(e) => updateProvider(provider.type, { defaultModel: e.target.value })}
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            </div>
+                          </>
+                        )}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
               ))}
             </div>
-          </div>
+          </motion.div>
         </TabsContent>
 
         <TabsContent value="models" className="p-6 space-y-6">
-          <div className="space-y-4">
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-4"
+          >
             <h3 className="text-lg font-medium">Model Selection</h3>
             <p className="text-sm text-muted-foreground">
               Choose which model to use for AI agents. Custom models can be added below.
             </p>
 
             <div className="space-y-2">
-              {currentProvider?.enabledModels.map((model) => (
-                <div
+              {currentProvider?.enabledModels.map((model: { id: string; name: string }) => (
+                <motion.div
                   key={model.id}
+                  whileHover={{ scale: 1.01 }}
                   className={cn(
                     'flex items-center justify-between rounded-lg border p-4',
                     activeModel === model.id
@@ -197,7 +220,7 @@ export function SettingsView() {
                       </Button>
                     )}
                   </div>
-                </div>
+                </motion.div>
               ))}
             </div>
 
@@ -228,18 +251,25 @@ export function SettingsView() {
                 Add Model
               </Button>
             </div>
-          </div>
+          </motion.div>
         </TabsContent>
 
         <TabsContent value="search" className="p-6 space-y-6">
-          <div className="space-y-4">
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-4"
+          >
             <h3 className="text-lg font-medium">Web Search & Chunking</h3>
             <p className="text-sm text-muted-foreground">
               Configure how agents access and process web search results.
             </p>
 
             <div className="space-y-6">
-              <div className="flex items-center justify-between">
+              <motion.div
+                whileHover={{ scale: 1.01 }}
+                className="flex items-center justify-between p-4 rounded-lg border"
+              >
                 <div>
                   <Label>Enable Web Search</Label>
                   <p className="text-sm text-muted-foreground">
@@ -250,11 +280,15 @@ export function SettingsView() {
                   checked={webSearch.enabled}
                   onCheckedChange={(checked) => setWebSearch({ enabled: checked })}
                 />
-              </div>
+              </motion.div>
 
               <Separator />
 
-              <div className="space-y-4">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="space-y-4"
+              >
                 <div className="space-y-2">
                   <Label>Chunk Size: {webSearch.chunkSize} characters</Label>
                   <p className="text-sm text-muted-foreground">
@@ -282,11 +316,11 @@ export function SettingsView() {
                     step={10}
                   />
                 </div>
-              </div>
+              </motion.div>
             </div>
-          </div>
+          </motion.div>
         </TabsContent>
       </Tabs>
-    </div>
+    </motion.div>
   );
 }
