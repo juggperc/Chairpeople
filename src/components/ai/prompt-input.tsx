@@ -51,8 +51,7 @@ export function PromptInput({
             if (!isLoading && value.trim()) {
               const form = e.currentTarget.form;
               if (form) {
-                const submitEvent = new Event('submit', { bubbles: true });
-                form.dispatchEvent(submitEvent);
+                form.requestSubmit();
               }
             }
           }

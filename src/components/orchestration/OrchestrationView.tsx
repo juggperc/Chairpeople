@@ -6,7 +6,7 @@ import { useCompanyStore } from '@/stores/company';
 import { Conversation, Message, PromptInput, SuggestionPills, Loader } from '@/components/ai';
 import { Header } from '@/components/layout';
 import { Button } from '@/components/ui/button';
-import { Building2 } from 'lucide-react';
+import { Building2, AlertCircle } from 'lucide-react';
 import { CompanyEditor } from './CompanyEditor';
 
 const INITIAL_SUGGESTIONS = [
@@ -18,7 +18,7 @@ const INITIAL_SUGGESTIONS = [
 ];
 
 export function OrchestrationView() {
-  const { messages, input, handleInputChange, sendMessage, isLoading } = useOrchestrator();
+  const { input, handleInputChange, sendMessage, isLoading, streamingResponse, error } = useOrchestrator();
   const { orchestrationMessages } = useChatStore();
   const { createCompany } = useCompanyStore();
   const [showEditor, setShowEditor] = React.useState(false);
@@ -90,9 +90,9 @@ export function OrchestrationView() {
   };
 
   React.useEffect(() => {
-    if (messages.length > 0) {
-      const lastMessage = messages[messages.length - 1];
-      if (lastMessage.role === 'assistant') {
+    if (orchestrationMessages.length > 0) {
+      const lastMessage = orchestrationMessages[orchestrationMessages.length - 1];
+      if (lastMessage.senderType === 'orchestrator') {
         const jsonMatch = lastMessage.content.match(/```json\s*(\{[\s\S]*?\})\s*```/);
         if (jsonMatch) {
           try {
@@ -106,7 +106,7 @@ export function OrchestrationView() {
         }
       }
     }
-  }, [messages]);
+  }, [orchestrationMessages]);
 
   return (
     <div className="flex flex-col h-full">
@@ -124,7 +124,7 @@ export function OrchestrationView() {
       <div className="flex-1 overflow-hidden flex flex-col">
         <Conversation className="flex-1">
           <AnimatePresence mode="wait">
-            {orchestrationMessages.length === 0 && messages.length === 0 && (
+            {orchestrationMessages.length === 0 && (
               <motion.div
                 key="welcome"
                 initial={{ opacity: 0, y: 20 }}
@@ -152,47 +152,63 @@ export function OrchestrationView() {
           </AnimatePresence>
 
           <AnimatePresence>
-            {orchestrationMessages.map((msg, i) => (
+            {orchestrationMessages.map((msg, i) => {
+              // Skip the last message if it's currently streaming to avoid duplication
+              const isLastMessage = i === orchestrationMessages.length - 1;
+              const isStreamingOrchestrator = isLastMessage && msg.senderType === 'orchestrator' && isLoading;
+              
+              if (isStreamingOrchestrator && streamingResponse) return null;
+
+              return (
+                <motion.div
+                  key={msg.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.05 }}
+                >
+                  <Message
+                    role={msg.senderType === 'user' ? 'user' : 'assistant'}
+                    senderName={msg.senderName}
+                    content={msg.content}
+                    timestamp={msg.timestamp}
+                  />
+                </motion.div>
+              );
+            })}
+            
+            {isLoading && streamingResponse && (
               <motion.div
-                key={msg.id}
+                key="streaming"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.05 }}
               >
                 <Message
-                  role={msg.senderType === 'user' ? 'user' : 'assistant'}
-                  senderName={msg.senderName}
-                  content={msg.content}
-                  timestamp={msg.timestamp}
+                  role="assistant"
+                  senderName="Orchestrator"
+                  content={streamingResponse}
                 />
               </motion.div>
-            ))}
+            )}
           </AnimatePresence>
 
-          <AnimatePresence>
-            {messages.map((msg, i) => (
-              <motion.div
-                key={msg.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.05 }}
-              >
-                <Message
-                  role={msg.role}
-                  senderName={msg.role === 'user' ? 'You' : 'Orchestrator'}
-                  content={msg.content}
-                />
-              </motion.div>
-            ))}
-          </AnimatePresence>
-
-          {isLoading && messages.length === orchestrationMessages.length && (
+          {isLoading && !streamingResponse && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               className="flex justify-center py-4"
             >
               <Loader />
+            </motion.div>
+          )}
+
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mx-4 mb-4 flex items-center gap-2 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+            >
+              <AlertCircle className="h-4 w-4 flex-shrink-0" />
+              {error.message}
             </motion.div>
           )}
         </Conversation>

@@ -8,12 +8,14 @@ interface ChatState {
   activeConversationId: string | null;
   conversations: Record<string, Conversation>;
   messagesByConversation: Record<string, Message[]>;
-  addOrchestrationMessage: (message: Omit<Message, 'id' | 'timestamp'>) => void;
+  addOrchestrationMessage: (message: Omit<Message, 'id' | 'timestamp'>) => string;
+  updateOrchestrationMessage: (id: string, content: string) => void;
   clearOrchestrationMessages: () => void;
   createConversation: (companyId: string, type: Conversation['type'], participantIds: string[]) => Conversation;
   getConversation: (id: string) => Conversation | null;
   getMessages: (conversationId: string) => Message[];
-  addMessage: (conversationId: string, message: Omit<Message, 'id' | 'timestamp'>) => void;
+  addMessage: (conversationId: string, message: Omit<Message, 'id' | 'timestamp'>) => string;
+  updateMessage: (conversationId: string, id: string, content: string) => void;
   clearConversation: (conversationId: string) => void;
   setActiveConversation: (id: string | null) => void;
 }
@@ -30,6 +32,16 @@ export const useChatStore = create<ChatState>()(
       const timestamp = new Date().toISOString();
       set((state) => {
         state.orchestrationMessages.push({ ...message, id, timestamp });
+      });
+      return id;
+    },
+
+    updateOrchestrationMessage: (id, content) => {
+      set((state) => {
+        const msg = state.orchestrationMessages.find(m => m.id === id);
+        if (msg) {
+          msg.content = content;
+        }
       });
     },
 
@@ -76,6 +88,19 @@ export const useChatStore = create<ChatState>()(
         state.messagesByConversation[conversationId].push({ ...message, id, timestamp });
         if (state.conversations[conversationId]) {
           state.conversations[conversationId].updatedAt = timestamp;
+        }
+      });
+      return id;
+    },
+
+    updateMessage: (conversationId, id, content) => {
+      set((state) => {
+        const messages = state.messagesByConversation[conversationId];
+        if (messages) {
+          const msg = messages.find(m => m.id === id);
+          if (msg) {
+            msg.content = content;
+          }
         }
       });
     },

@@ -8,18 +8,18 @@ interface ConversationProps {
 }
 
 export function Conversation({ children, className }: ConversationProps) {
-  const scrollRef = React.useRef<HTMLDivElement>(null);
+  const bottomRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    // Scroll the sentinel element into view whenever children change
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [children]);
 
   return (
     <ScrollArea className={cn('flex-1', className)}>
-      <div ref={scrollRef} className="p-4 space-y-4">
+      <div className="p-4 space-y-4">
         {children}
+        <div ref={bottomRef} />
       </div>
     </ScrollArea>
   );

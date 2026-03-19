@@ -17,9 +17,9 @@ const providerConfigs: Record<ProviderType, Omit<ProviderConfig, 'apiKey'>> = {
   },
   opencode: {
     type: 'opencode',
-    name: 'OpenCode',
-    baseUrl: 'https://opencode.ai/api/v1',
-    defaultModel: 'opencode',
+    name: 'OpenCode Go',
+    baseUrl: 'https://opencode.ai/zen/go/v1',
+    defaultModel: 'glm-5',
   },
   custom: {
     type: 'custom',
@@ -59,18 +59,14 @@ export function validateProviderConfig(config: ProviderConfig): string[] {
 
 export const OPENROUTER_MODELS = [
   { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet', provider: 'openrouter' as const },
-  { id: 'anthropic/claude-3-opus', name: 'Claude 3 Opus', provider: 'openrouter' as const },
-  { id: 'openai/gpt-4o', name: 'GPT-4o', provider: 'openrouter' as const },
-  { id: 'openai/gpt-4-turbo', name: 'GPT-4 Turbo', provider: 'openrouter' as const },
-  { id: 'google/gemini-pro-1.5', name: 'Gemini Pro 1.5', provider: 'openrouter' as const },
   { id: 'google/gemini-2.0-flash', name: 'Gemini 2.0 Flash', provider: 'openrouter' as const },
-  { id: 'meta-llama/llama-3-70b-instruct', name: 'Llama 3 70B', provider: 'openrouter' as const },
-  { id: 'mistralai/mixtral-8x22b-instruct', name: 'Mixtral 8x22B', provider: 'openrouter' as const },
+  { id: 'openai/gpt-4o', name: 'GPT-4o', provider: 'openrouter' as const },
   { id: 'deepseek/deepseek-chat', name: 'DeepSeek Chat', provider: 'openrouter' as const },
-  { id: 'x-ai/grok-2', name: 'Grok 2', provider: 'openrouter' as const },
 ];
 
 export const OPENCODE_MODELS = [
-  { id: 'opencode', name: 'OpenCode', provider: 'opencode' as const },
-  { id: 'opencode-gemma', name: 'OpenCode Gemma', provider: 'opencode' as const },
+  { id: 'glm-5', name: 'GLM-5 (Best for Code)', provider: 'opencode' as const },
+  { id: 'kimi-k2.5', name: 'Kimi K2.5', provider: 'opencode' as const },
+  { id: 'minimax-m2.7', name: 'MiniMax M2.7 (Fast)', provider: 'opencode' as const },
+  { id: 'minimax-m2.5', name: 'MiniMax M2.5', provider: 'opencode' as const },
 ];

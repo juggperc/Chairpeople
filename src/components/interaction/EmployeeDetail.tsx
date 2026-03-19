@@ -1,14 +1,14 @@
 import * as React from 'react';
 import { useCompanyStore } from '@/stores/company';
 import { useChatStore } from '@/stores/chat';
+import { useEmployeeAgent } from '@/lib/ai/employee';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { MessageSquare, Mail, X, Send } from 'lucide-react';
+import { MessageSquare, Mail, X, Send, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Employee } from '@/types';
-import { PromptInput } from '@/components/ai';
 
 interface EmployeeDetailProps {
   employeeId: string;
@@ -16,17 +16,35 @@ interface EmployeeDetailProps {
   onStartDM?: (employeeId: string) => void;
 }
 
+// Placeholder employee for hook call safety
+const PLACEHOLDER_EMPLOYEE: Employee = {
+  id: '', companyId: '', name: 'Unknown', role: '', department: '',
+  personality: '', specialties: [], memoryInstructions: '', reportingTo: null,
+  interactionRules: [], createdAt: '', updatedAt: '',
+};
+
 export function EmployeeDetail({ employeeId, onClose, onStartDM }: EmployeeDetailProps) {
   const activeCompany = useCompanyStore((s) => {
     const company = s.companies.find((c) => c.id === s.activeCompanyId);
     return company || null;
   });
   const employee = activeCompany?.structure.employees.find((e) => e.id === employeeId);
-  const { messagesByConversation, conversations } = useChatStore();
   
-  const [localInput, setLocalInput] = React.useState('');
   const conversationId = `employee-${employeeId}`;
-  const employeeMessages = messagesByConversation[conversationId] || [];
+  const messages = useChatStore((s) => s.messagesByConversation[conversationId] || []);
+
+  // Wire up the AI agent so employee actually responds
+  const { input, handleInputChange, sendMessage, isLoading, streamingResponse } = useEmployeeAgent({
+    employee: employee || PLACEHOLDER_EMPLOYEE,
+    companyId: activeCompany?.id || '',
+    conversationId,
+  });
+
+  const bottomRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, streamingResponse]);
 
   if (!employee || !activeCompany) {
     return null;
@@ -51,19 +69,8 @@ export function EmployeeDetail({ employeeId, onClose, onStartDM }: EmployeeDetai
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!localInput.trim()) return;
-
-    const { addMessage } = useChatStore.getState();
-    addMessage(conversationId, {
-      companyId: activeCompany.id,
-      conversationId,
-      senderId: 'user',
-      senderType: 'user',
-      senderName: 'CEO',
-      content: localInput.trim(),
-    });
-
-    setLocalInput('');
+    if (!input.trim()) return;
+    sendMessage(input, 'CEO');
   };
 
   return (
@@ -154,21 +161,35 @@ export function EmployeeDetail({ employeeId, onClose, onStartDM }: EmployeeDetai
             </div>
           )}
 
+          {onStartDM && (
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => onStartDM(employeeId)}
+            >
+              <Mail className="h-4 w-4 mr-2" />
+              Open Full DM
+            </Button>
+          )}
+
           <Separator />
 
           <div className="space-y-3">
-            <h5 className="text-sm font-medium text-muted-foreground">Chat with {employee.name.split(' ')[0]}</h5>
+            <h5 className="text-sm font-medium text-muted-foreground">
+              <MessageSquare className="h-4 w-4 inline mr-1" />
+              Quick Chat with {employee.name.split(' ')[0]}
+            </h5>
             <div className="space-y-2 max-h-48 overflow-auto">
-              {employeeMessages.length === 0 ? (
+              {messages.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-4">
                   No messages yet. Start a conversation!
                 </p>
               ) : (
-                employeeMessages.map((msg) => (
+                messages.map((msg) => (
                   <div
                     key={msg.id}
                     className={cn(
-                      'rounded-lg px-3 py-2 text-sm',
+                      'rounded-lg px-3 py-2 text-sm whitespace-pre-wrap',
                       msg.senderType === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'
                     )}
                   >
@@ -177,17 +198,36 @@ export function EmployeeDetail({ employeeId, onClose, onStartDM }: EmployeeDetai
                   </div>
                 ))
               )}
+              {isLoading && streamingResponse && (
+                <div className="rounded-lg px-3 py-2 text-sm bg-muted whitespace-pre-wrap">
+                  <p className="font-medium text-xs mb-1">{employee.name}</p>
+                  {streamingResponse}
+                </div>
+              )}
+              {isLoading && !streamingResponse && (
+                <div className="flex items-center gap-2 py-2">
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground">Thinking...</span>
+                </div>
+              )}
+              <div ref={bottomRef} />
             </div>
             <form onSubmit={handleSendMessage} className="flex gap-2">
               <input
                 type="text"
-                value={localInput}
-                onChange={(e) => setLocalInput(e.target.value)}
+                value={input}
+                onChange={(e) => handleInputChange(e as any)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSendMessage(e as any);
+                  }
+                }}
                 placeholder="Type a message..."
                 className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
               />
-              <Button type="submit" size="icon">
-                <Send className="h-4 w-4" />
+              <Button type="submit" size="icon" disabled={!input.trim() || isLoading}>
+                {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               </Button>
             </form>
           </div>

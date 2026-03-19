@@ -1,11 +1,8 @@
 import { useState, useCallback } from 'react';
-import { streamText } from 'ai';
-import { openrouter } from '@openrouter/ai-sdk-provider';
-import { createOpenAI } from '@ai-sdk/openai';
 import { useSettingsStore } from '@/stores/settings';
 import { useChatStore } from '@/stores/chat';
 import { useCompanyStore } from '@/stores/company';
-import { toolRegistry } from '@/lib/tools';
+import { toolRegistry, executeInSandbox } from '@/lib/tools';
 
 const ORCHESTRATOR_SYSTEM_PROMPT = `You are the Orchestrator - a visionary AI architect who helps users build AI-powered companies from scratch.
 
@@ -112,29 +109,18 @@ You can design custom skills and connectors when the user requests access to ext
 
 Respond in a conversational way, explaining what you're building. Use the JSON blocks for actual changes.`;
 
-interface Message {
-  id: string;
-  role: 'user' | 'assistant' | 'system';
-  content: string;
-}
-
 export function useOrchestrator() {
   const { activeProvider, providers } = useSettingsStore();
-  const { addOrchestrationMessage, clearOrchestrationMessages } = useChatStore();
-  const { createCompany } = useCompanyStore();
+  const { addOrchestrationMessage, updateOrchestrationMessage, clearOrchestrationMessages } = useChatStore();
 
-  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [streamingResponse, setStreamingResponse] = useState('');
   const [error, setError] = useState<Error | null>(null);
 
   const providerConfig = providers.find(p => p.type === activeProvider);
 
-  // #region debug log
-  fetch('http://127.0.0.1:7323/ingest/3ce41043-4313-4eef-a698-7be0280253e2',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'bf546b'},body:JSON.stringify({sessionId:'bf546b',location:'orchestrator.ts:130',message:'Provider config state',data:{activeProvider,providersCount:providers.length,providerConfigHasApiKey:!!providerConfig?.apiKey,defaultModel:providerConfig?.defaultModel},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
-
-  const handleCreateSkill = useCallback((skillData: {
+  const handleCreateSkill = useCallback(async (skillData: {
     name: string;
     description: string;
     instructions: string;
@@ -144,6 +130,29 @@ export function useOrchestrator() {
       parameters: Record<string, { type: string; description: string; required?: boolean }>;
     }>;
   }) => {
+    const { activeCompanyId } = useCompanyStore.getState();
+    if (!activeCompanyId) return;
+
+    // Persist to backend
+    try {
+      await fetch('/api/skills', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: Math.random().toString(36).substring(7),
+          companyId: activeCompanyId,
+          name: skillData.name,
+          description: skillData.description,
+          instructions: skillData.instructions,
+          provider: activeProvider,
+          tools: skillData.tools,
+          createdBy: 'orchestrator'
+        })
+      });
+    } catch (err) {
+      console.error('Failed to save skill to backend:', err);
+    }
+
     // Register tools with the tool registry
     skillData.tools?.forEach(tool => {
       if (!toolRegistry.has(tool.name)) {
@@ -160,11 +169,14 @@ export function useOrchestrator() {
               },
             ])
           ),
-          handler: async () => ({ success: true, output: 'Tool executed', exitCode: 0 }),
+          handler: async (params) => {
+            // Default handler for AI-generated skills uses the sandbox
+            return executeInSandbox(tool.name, [JSON.stringify(params)]);
+          },
         });
       }
     });
-  }, []);
+  }, [activeProvider]);
 
   const sendPrompt = useCallback(async (userInput: string) => {
     if (!providerConfig?.apiKey) {
@@ -172,11 +184,12 @@ export function useOrchestrator() {
       return;
     }
 
-    const userMessage: Message = {
-      id: Math.random().toString(36).substring(7),
-      role: 'user',
-      content: userInput,
-    };
+    // Capture existing messages BEFORE adding the new user message to store
+    // to avoid sending the user message twice
+    const existingMessages = useChatStore.getState().orchestrationMessages.map(m => ({
+      role: m.senderType === 'user' ? 'user' as const : 'assistant' as const,
+      content: m.content,
+    }));
 
     addOrchestrationMessage({
       companyId: '',
@@ -187,57 +200,59 @@ export function useOrchestrator() {
       content: userInput,
     });
 
-    setMessages(prev => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
+    setStreamingResponse('');
     setError(null);
 
     try {
-      // #region debug log
-      fetch('http://127.0.0.1:7323/ingest/3ce41043-4313-4eef-a698-7be0280253e2',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'bf546b'},body:JSON.stringify({sessionId:'bf546b',location:'orchestrator.ts:195',message:'Before streamText call',data:{activeProvider,defaultModel:providerConfig.defaultModel,baseUrl:providerConfig.baseUrl},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
-      
-      let model;
-      if (activeProvider === 'opencode') {
-        const openai = createOpenAI({
-          apiKey: providerConfig.apiKey || 'dummy',
-          baseURL: providerConfig.baseUrl || 'https://opencode.ai/zen/v1',
-        });
-        model = openai(providerConfig.defaultModel || 'opencode');
-      } else {
-        model = openrouter(providerConfig.defaultModel || 'anthropic/claude-3.5-sonnet');
-      }
-
-      const result = await streamText({
-        model,
-        system: ORCHESTRATOR_SYSTEM_PROMPT,
-        messages: [{ role: 'user', content: userInput }],
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [
+            ...existingMessages,
+            { role: 'user', content: userInput }
+          ],
+          system: ORCHESTRATOR_SYSTEM_PROMPT,
+          provider: activeProvider,
+          model: providerConfig.defaultModel,
+          apiKey: providerConfig.apiKey,
+          baseUrl: providerConfig.baseUrl,
+        }),
       });
 
-      let fullResponse = '';
-      const reader = result.fullStream.getReader();
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        fullResponse += value;
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Server error: ${response.statusText}`);
       }
 
-      const assistantMessage: Message = {
-        id: Math.random().toString(36).substring(7),
-        role: 'assistant',
-        content: fullResponse,
-      };
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('No response body');
 
-      setMessages(prev => [...prev, assistantMessage]);
-      addOrchestrationMessage({
+      // Add initial empty assistant message to store
+      const assistantMsgId = addOrchestrationMessage({
         companyId: '',
         conversationId: 'orchestration',
         senderId: 'orchestrator',
         senderType: 'orchestrator',
         senderName: 'Orchestrator',
-        content: fullResponse,
+        content: '',
       });
+
+      let fullResponse = '';
+      const decoder = new TextDecoder();
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        fullResponse += chunk;
+        setStreamingResponse(fullResponse);
+        
+        // Update the store with the latest content
+        updateOrchestrationMessage(assistantMsgId, fullResponse);
+      }
 
       // Check if response contains skill creation
       const jsonMatch = fullResponse.match(/```json\s*(\{[\s\S]*?\})\s*```/);
@@ -252,25 +267,24 @@ export function useOrchestrator() {
         }
       }
     } catch (err) {
-      // #region debug log
-      fetch('http://127.0.0.1:7323/ingest/3ce41043-4313-4eef-a698-7be0280253e2',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'bf546b'},body:JSON.stringify({sessionId:'bf546b',location:'orchestrator.ts:237',message:'Error caught in sendPrompt',data:{error:err instanceof Error ? err.message : String(err),name:err instanceof Error ? err.name : 'unknown'},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       setError(err instanceof Error ? err : new Error('Unknown error'));
     } finally {
       setIsLoading(false);
+      setStreamingResponse('');
     }
-  }, [providerConfig, addOrchestrationMessage, handleCreateSkill, activeProvider]);
+  }, [providerConfig, addOrchestrationMessage, updateOrchestrationMessage, handleCreateSkill, activeProvider]);
 
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value);
   }, []);
 
   return {
-    messages,
+    messages: [], // messages now come from store
     input,
     handleInputChange,
     sendMessage: sendPrompt,
     isLoading,
+    streamingResponse,
     error,
     clearMessages: clearOrchestrationMessages,
   };

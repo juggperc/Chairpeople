@@ -37,7 +37,7 @@ export function Message({ role, content, senderName, timestamp, className }: Mes
         )}
         <div
           className={cn(
-            'rounded-lg px-4 py-2 text-sm',
+            'rounded-lg px-4 py-2 text-sm whitespace-pre-wrap',
             isUser && 'bg-primary text-primary-foreground',
             isSystem && 'bg-muted text-muted-foreground italic',
             !isUser && !isSystem && 'bg-muted'

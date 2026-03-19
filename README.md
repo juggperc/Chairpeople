@@ -11,12 +11,14 @@ Build and manage AI-powered companies with autonomous agents. Chairpeople lets y
 - **Company Architecture** - Design hierarchical, flat, or any organizational structure you imagine
 - **Autonomous Agents** - Each employee is an AI agent with persistent memory and unique personality
 - **Multi-Provider Support** - Bring Your Own API key for OpenRouter, OpenCode, or custom providers
+- **Real-Time Streaming** - Token-by-token streaming responses from AI agents in all chat views
 - **Real-Time Interaction** - Chat with individual employees, group chats, and DMs between agents
 - **Executable Skills & Tools** - Agents can execute commands in sandboxed environments
-- **Skills & Connectors** - Agents can access external tools and services you define
+- **Skills & Connectors** - Orchestrator can build and design its own skills and connections on demand
 - **Persistent Memory** - Companies and employees remember context across sessions
-- **Visual Organization** - Interactive org chart shows your company structure at a glance
+- **Visual Organization** - Interactive org chart powered by React Flow shows your company structure
 - **Animated UI** - Smooth Framer Motion animations throughout
+- **Error Handling** - Clear error messages when API keys are missing or requests fail
 
 ## Tech Stack
 
@@ -204,6 +206,31 @@ chairpeople/
 └── public/
     └── chairpeople.png   # App logo
 ```
+
+## Changelog
+
+### v0.1.1 — Streaming & Interaction Fix
+
+- **Fixed**: AI streaming now works correctly in all chat views (Orchestration, DM, Group Chat, Employee Detail)
+- **Fixed**: Duplicate messages no longer sent to the API
+- **Fixed**: Enter key submission in chat input
+- **Fixed**: Loading spinner now visible during AI response generation
+- **Fixed**: Auto-scroll follows new messages as they stream in
+- **Fixed**: Employee Detail inline chat now triggers AI responses
+- **Fixed**: Group Chat now has AI employee responses with streaming
+- **Fixed**: DirectMessage no longer crashes when employee data is unavailable
+- **Added**: Error banner displays clear messages when API key is missing or requests fail
+- **Added**: Multi-line AI responses render properly with preserved whitespace
+- **Cleaned**: Removed unused browser-side AI SDK imports
+
+### v0.1.0 — Initial Release
+
+- Orchestration view with company structure generation
+- Interaction view with org chart, DMs, and group chat
+- Multi-provider support (OpenRouter, OpenCode, Custom)
+- Skills & tools system with sandbox execution
+- Persistent memory and cron job scheduling
+- SQLite database for all data persistence
 
 ## License
 

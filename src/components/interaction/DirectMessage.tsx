@@ -1,10 +1,11 @@
 import * as React from 'react';
 import { useCompanyStore } from '@/stores/company';
 import { useChatStore } from '@/stores/chat';
+import { useEmployeeAgent } from '@/lib/ai/employee';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { X, Send } from 'lucide-react';
+import { X, Send, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Employee } from '@/types';
 
@@ -12,6 +13,22 @@ interface DirectMessageProps {
   employeeId: string;
   onClose: () => void;
 }
+
+// Placeholder employee to satisfy hook rules (hooks can't be called conditionally)
+const PLACEHOLDER_EMPLOYEE: Employee = {
+  id: '',
+  companyId: '',
+  name: 'Unknown',
+  role: '',
+  department: '',
+  personality: '',
+  specialties: [],
+  memoryInstructions: '',
+  reportingTo: null,
+  interactionRules: [],
+  createdAt: '',
+  updatedAt: '',
+};
 
 export function DirectMessage({ employeeId, onClose }: DirectMessageProps) {
   const activeCompany = useCompanyStore((s) => {
@@ -21,24 +38,24 @@ export function DirectMessage({ employeeId, onClose }: DirectMessageProps) {
 
   const employee = activeCompany?.structure.employees.find((e) => e.id === employeeId);
   const conversationId = `dm-${employeeId}`;
-  const { messagesByConversation, addMessage } = useChatStore();
-  const messages = messagesByConversation[conversationId] || [];
-  const [input, setInput] = React.useState('');
+  const messages = useChatStore((s) => s.messagesByConversation[conversationId] || []);
+  
+  const { input, handleInputChange, sendMessage, isLoading, streamingResponse } = useEmployeeAgent({
+    employee: employee || PLACEHOLDER_EMPLOYEE,
+    companyId: activeCompany?.id || '',
+    conversationId,
+  });
+
+  const bottomRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, streamingResponse]);
 
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || !activeCompany) return;
-
-    addMessage(conversationId, {
-      companyId: activeCompany.id,
-      conversationId,
-      senderId: 'user',
-      senderType: 'user',
-      senderName: 'CEO',
-      content: input.trim(),
-    });
-
-    setInput('');
+    if (!input.trim() || !activeCompany || !employee) return;
+    sendMessage(input, 'CEO');
   };
 
   const getInitials = (name: string) => {
@@ -51,7 +68,12 @@ export function DirectMessage({ employeeId, onClose }: DirectMessageProps) {
   };
 
   if (!employee || !activeCompany) {
-    return null;
+    return (
+      <div className="flex flex-col h-full w-80 border-l bg-card items-center justify-center">
+        <p className="text-sm text-muted-foreground">Employee not found</p>
+        <Button variant="ghost" size="sm" className="mt-2" onClick={onClose}>Close</Button>
+      </div>
+    );
   }
 
   return (
@@ -83,8 +105,13 @@ export function DirectMessage({ employeeId, onClose }: DirectMessageProps) {
             </div>
           )}
 
-          {messages.map((msg) => {
+          {messages.map((msg, i) => {
             const isUser = msg.senderType === 'user';
+            
+            // Avoid duplicate rendering while streaming
+            const isLastMessage = i === messages.length - 1;
+            const isStreamingThis = isLastMessage && msg.senderId === employee.id && isLoading;
+            if (isStreamingThis && streamingResponse) return null;
 
             return (
               <div key={msg.id} className="flex gap-3">
@@ -102,7 +129,7 @@ export function DirectMessage({ employeeId, onClose }: DirectMessageProps) {
                   </div>
                   <div
                     className={cn(
-                      'rounded-lg px-3 py-2 text-sm',
+                      'rounded-lg px-3 py-2 text-sm whitespace-pre-wrap',
                       isUser ? 'bg-primary text-primary-foreground' : 'bg-muted'
                     )}
                   >
@@ -112,19 +139,57 @@ export function DirectMessage({ employeeId, onClose }: DirectMessageProps) {
               </div>
             );
           })}
+          
+          {isLoading && streamingResponse && (
+            <div className="flex gap-3">
+              <Avatar className="h-8 w-8">
+                <AvatarFallback className="bg-secondary text-secondary-foreground text-xs">
+                  {getInitials(employee.name)}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">{employee.name}</span>
+                </div>
+                <div className="rounded-lg px-3 py-2 text-sm bg-muted whitespace-pre-wrap">
+                  {streamingResponse}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {isLoading && !streamingResponse && (
+            <div className="flex gap-3 animate-pulse">
+              <Avatar className="h-8 w-8">
+                <AvatarFallback className="bg-secondary text-secondary-foreground text-xs">
+                  {getInitials(employee.name)}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 space-y-1">
+                <div className="h-4 bg-muted rounded w-1/4" />
+                <div className="h-10 bg-muted rounded w-3/4" />
+              </div>
+            </div>
+          )}
+          <div ref={bottomRef} />
         </div>
       </ScrollArea>
 
       <form onSubmit={handleSend} className="p-4 border-t flex gap-2">
-        <input
-          type="text"
+        <textarea
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          onChange={handleInputChange}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              handleSend(e as any);
+            }
+          }}
           placeholder={`Message ${employee.name.split(' ')[0]}...`}
-          className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
+          className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm resize-none h-10"
         />
-        <Button type="submit" size="icon" disabled={!input.trim()}>
-          <Send className="h-4 w-4" />
+        <Button type="submit" size="icon" disabled={!input.trim() || isLoading}>
+          {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
         </Button>
       </form>
     </div>

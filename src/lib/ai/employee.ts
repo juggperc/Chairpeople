@@ -1,7 +1,4 @@
 import { useCallback, useState } from 'react';
-import { streamText } from 'ai';
-import { openrouter } from '@openrouter/ai-sdk-provider';
-import { createOpenAI } from '@ai-sdk/openai';
 import type { Employee } from '@/types';
 import { useSettingsStore } from '@/stores/settings';
 import { useChatStore } from '@/stores/chat';
@@ -50,14 +47,14 @@ export interface EmployeeAgentOptions {
 
 export function useEmployeeAgent({ employee, companyId, skills = [], conversationId, onMessage }: EmployeeAgentOptions) {
   const { providers, activeProvider } = useSettingsStore();
-  const { addMessage } = useChatStore();
+  const { addMessage, updateMessage, getMessages } = useChatStore();
   const providerConfig = providers.find(p => p.type === (employee.provider || activeProvider));
   const systemPrompt = getEmployeeSystemPrompt(employee, skills);
   const convId = conversationId || `dm-${uuid()}`;
 
-  const [messages, setMessages] = useState<Array<{ id: string; role: 'user' | 'assistant'; content: string }>>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [streamingResponse, setStreamingResponse] = useState('');
   const [error, setError] = useState<Error | null>(null);
 
   const send = useCallback(async (userInput: string, senderName = 'You') => {
@@ -66,86 +63,102 @@ export function useEmployeeAgent({ employee, companyId, skills = [], conversatio
       return;
     }
 
-    const userMsg = {
-      id: uuid(),
+    const providerType = employee.provider || activeProvider;
+
+    // Capture existing messages BEFORE adding the new user message to store
+    const existingMessages = getMessages(convId).map(m => ({
+      role: m.senderType === 'user' ? 'user' as const : 'assistant' as const,
+      content: m.content,
+    }));
+
+    addMessage(convId, {
       companyId,
       conversationId: convId,
       senderId: 'user',
       senderType: 'user' as const,
       senderName,
       content: userInput,
-    };
-    addMessage(convId, userMsg);
+    });
 
-    setMessages(prev => [...prev, { id: userMsg.id, role: 'user' as const, content: userInput }]);
     setInput('');
     setIsLoading(true);
+    setStreamingResponse('');
     setError(null);
 
     try {
-      // Determine model based on provider
-      let model;
-      const providerType = employee.provider || activeProvider;
-      if (providerType === 'opencode') {
-        const openai = createOpenAI({
-          apiKey: providerConfig.apiKey || 'dummy',
-          baseURL: providerConfig.baseUrl || 'https://opencode.ai/zen/v1',
-        });
-        model = openai(employee.modelId || providerConfig.defaultModel || 'opencode');
-      } else {
-        model = openrouter(employee.modelId || providerConfig.defaultModel || 'anthropic/claude-3.5-sonnet');
-      }
-
-      const result = await streamText({
-        model,
-        system: systemPrompt,
-        messages: [{ role: 'user', content: userInput }],
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [
+            ...existingMessages,
+            { role: 'user', content: userInput }
+          ],
+          system: systemPrompt,
+          provider: providerType,
+          model: employee.modelId || providerConfig.defaultModel,
+          apiKey: providerConfig.apiKey,
+          baseUrl: providerConfig.baseUrl,
+        }),
       });
 
-      let fullResponse = '';
-      const reader = result.fullStream.getReader();
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        fullResponse += value;
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Server error: ${response.statusText}`);
       }
 
-      const msg = {
-        id: uuid(),
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('No response body');
+
+      // Add initial empty assistant message to store
+      const assistantMsgId = addMessage(convId, {
         companyId,
         conversationId: convId,
         senderId: employee.id,
         senderType: 'employee' as const,
         senderName: employee.name,
-        content: fullResponse,
-      };
-      addMessage(convId, msg);
+        content: '',
+      });
+
+      let fullResponse = '';
+      const decoder = new TextDecoder();
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        fullResponse += chunk;
+        setStreamingResponse(fullResponse);
+        
+        // Update the store with latest content
+        updateMessage(convId, assistantMsgId, fullResponse);
+      }
+      
       onMessage?.({
-        id: msg.id,
+        id: uuid(), // Temp ID for callback
         content: fullResponse,
         sender: employee.name,
         senderType: 'employee',
       });
-
-      setMessages(prev => [...prev, { id: msg.id, role: 'assistant' as const, content: fullResponse }]);
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Unknown error'));
     } finally {
       setIsLoading(false);
+      setStreamingResponse('');
     }
-  }, [providerConfig, systemPrompt, employee, companyId, convId, addMessage, onMessage]);
+  }, [providerConfig, systemPrompt, employee, companyId, convId, addMessage, updateMessage, getMessages, onMessage, activeProvider]);
 
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value);
   }, []);
 
   return {
-    messages,
+    messages: [], // messages now come from store
     input,
     handleInputChange,
     sendMessage: send,
     isLoading,
+    streamingResponse,
     error,
   };
 }

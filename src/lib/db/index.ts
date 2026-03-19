@@ -10,7 +10,7 @@ let db: Database.Database | null = null;
 export function getDb(): Database.Database {
   if (db) return db;
   
-  const dbPath = join(__dirname, '../../../../chairpeople.db');
+  const dbPath = join(__dirname, '../../../chairpeople.db');
   db = new Database(dbPath);
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');

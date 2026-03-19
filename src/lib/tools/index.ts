@@ -47,26 +47,30 @@ class ToolRegistry {
 
 export const toolRegistry = new ToolRegistry();
 
-// Sandbox execution utilities
+// Execution via backend proxy
 export async function executeInSandbox(
   command: string,
   args: string[] = [],
   timeout = 30000
 ): Promise<ToolResult> {
   try {
-    // In a real implementation, this would use a proper sandbox
-    // For now, we simulate execution with a timeout
-    const result = await new Promise<ToolResult>((resolve) => {
-      setTimeout(() => {
-        resolve({
-          success: false,
-          output: '',
-          error: 'Sandbox execution not available in browser environment',
-          exitCode: 1,
-        });
-      }, 100);
+    const response = await fetch('/api/tools/execute', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ command, args, timeout }),
     });
-    return result;
+
+    if (!response.ok) {
+      const errData = await response.json();
+      return {
+        success: false,
+        output: errData.output || '',
+        error: errData.error || response.statusText,
+        exitCode: errData.exitCode || 1,
+      };
+    }
+
+    return await response.json();
   } catch (error) {
     return {
       success: false,
@@ -74,6 +78,22 @@ export async function executeInSandbox(
       error: error instanceof Error ? error.message : 'Unknown error',
       exitCode: 1,
     };
+  }
+}
+
+export async function webSearch(query: string): Promise<any> {
+  try {
+    const response = await fetch('/api/tools/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query }),
+    });
+
+    if (!response.ok) throw new Error('Search failed');
+    return await response.json();
+  } catch (error) {
+    console.error('Search tool error:', error);
+    return { results: [] };
   }
 }
 
@@ -109,17 +129,21 @@ toolRegistry.register({
 });
 
 toolRegistry.register({
-  name: 'get_environment',
-  description: 'Get current environment information',
-  parameters: {},
-  handler: async () => {
+  name: 'web_search',
+  description: 'Search the web for information',
+  parameters: {
+    query: {
+      type: 'string',
+      description: 'The search query',
+      required: true,
+    },
+  },
+  handler: async (params) => {
+    const query = params.query as string;
+    const result = await webSearch(query);
     return {
       success: true,
-      output: JSON.stringify({
-        platform: typeof navigator !== 'undefined' ? navigator.platform : 'unknown',
-        language: typeof navigator !== 'undefined' ? navigator.language : 'unknown',
-        timestamp: new Date().toISOString(),
-      }),
+      output: JSON.stringify(result.results),
       exitCode: 0,
     };
   },
