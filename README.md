@@ -2,6 +2,8 @@
 
 <a href="https://github.com/juggperc/Chairpeople"><img src="public/chairpeople.png" width="128" align="right" /></a>
 
+**[中文](./README_zh-CN.md)** | English
+
 Build and manage AI-powered companies with autonomous agents. Chairpeople lets you design company structures, assign AI employees with distinct personalities, and watch them collaborate 24/7.
 
 ## Features

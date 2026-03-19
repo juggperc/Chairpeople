@@ -2,6 +2,8 @@
 
 <a href="https://github.com/juggperc/Chairpeople"><img src="public/chairpeople.png" width="128" align="right" /></a>
 
+**[English](./README.md)** | 中文
+
 使用自主智能体构建和管理 AI 驱动的公司。Chairpeople 让您设计公司结构、分配具有独特个性的 AI 员工，并观察他们全天候协作。
 
 ## 功能特点
